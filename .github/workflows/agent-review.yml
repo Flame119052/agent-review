@@ -1,0 +1,148 @@
+name: agent review
+on:
+  repository_dispatch:
+    types: [agent-review]
+  workflow_dispatch:
+    inputs:
+      repository:
+        required: true
+        type: string
+      issue_number:
+        required: true
+        type: string
+      comment_id:
+        required: true
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'issue_comment' || contains(github.event.comment.body, '@review ') || contains(github.event.comment.body, '@tess-review '))
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+      digest: ${{ steps.gate.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify the request and notify the target when needed
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+          AGENT_ALLOWLIST: ${{ vars.AGENT_ALLOWLIST }}
+          USAGE_SNAPSHOT_MAC: ${{ vars.USAGE_SNAPSHOT_MAC }}
+          USAGE_SNAPSHOT_VPS: ${{ vars.USAGE_SNAPSHOT_VPS }}
+          USAGE_SNAPSHOT_OMARCHY: ${{ vars.USAGE_SNAPSHOT_OMARCHY }}
+        run: bash tools/agent-gate.sh
+
+  review:
+    needs: gate
+    if: needs.gate.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      REVIEW_HUB_JOB: '1'
+      REVIEW_GATE_DIGEST: ${{ needs.gate.outputs.digest }}
+      AGENT_ALLOWLIST: ${{ vars.AGENT_ALLOWLIST }}
+      USAGE_SNAPSHOT_MAC: ${{ vars.USAGE_SNAPSHOT_MAC }}
+      USAGE_SNAPSHOT_VPS: ${{ vars.USAGE_SNAPSHOT_VPS }}
+      USAGE_SNAPSHOT_OMARCHY: ${{ vars.USAGE_SNAPSHOT_OMARCHY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify public visibility and pick the reviewer
+        id: pick
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+        run: node tools/agent-review.mjs pick
+
+      - name: Let bubblewrap start its sandbox
+        if: steps.pick.outputs.provider != 'none'
+        # Ubuntu 24.04 (ubuntu-latest) restricts unprivileged user namespaces through AppArmor, which is what bubblewrap
+        # needs for --unshare-all. Turning that restriction off is safe here: this VM exists for one review, holds only
+        # that review's key, and is deleted afterwards. The bwrap line is the real check: if it cannot start a sandbox
+        # the job stops, and no reviewer is ever run unsandboxed.
+        run: |
+          set -euo pipefail
+          # Older images do not have the key; the bwrap probe below is the real check either way.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          bwrap --unshare-all --share-net --die-with-parent --ro-bind / / -- true
+
+      # Only the chosen reviewer's CLI is installed, and only that provider's secret is given to the step that runs it.
+      # Versions are pinned so a review is the same tool today and in a month.
+      - name: Install Claude Code
+        id: install_claude
+        if: steps.pick.outputs.provider == 'claude'
+        run: npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.325
+      - name: Install Codex
+        id: install_codex
+        if: steps.pick.outputs.provider == 'codex'
+        run: npm install -g --no-audit --no-fund @openai/codex@0.169.0
+      - name: Install OpenCode
+        id: install_opencode
+        if: steps.pick.outputs.provider == 'opencode'
+        run: |
+          # `@opencode/cli` is OpenCode 2's official package, published by the OpenCode maintainer and installing the
+          # `opencode` binary this repo calls. `opencode-ai` is the 1.x package (same publisher, `opencode` binary), which
+          # does not take the v2 flags; checked with `npm view <pkg> version bin repository.url`, not from memory.
+          npm install -g --no-audit --no-fund @opencode/cli@2.3.0
+          # The agent file and provider config on main are what limit OpenCode; the review stops if either copy differs,
+          # or if this folder holds anything besides those two files.
+          mkdir -p "$HOME/.config/opencode/agents"
+          cp tools/opencode-reviewer.md "$HOME/.config/opencode/agents/tess-reviewer.md"
+          cp tools/opencode-config.json "$HOME/.config/opencode/opencode.json"
+      - name: Install Antigravity
+        id: install_antigravity
+        if: steps.pick.outputs.provider == 'antigravity'
+        run: |
+          # agy@1.5.12, the Linux x64 build. The archive's binary is named antigravity; the job calls it agy.
+          # The sha256 was checked against a download of that release. A changed archive fails here, before tar.
+          version=1.5.12
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/agy.tgz "https://github.com/google-antigravity/antigravity-cli/releases/download/${version}/agy_cli_linux_x64.tar.gz"
+          echo "0f0cb851cdc9fbedd50432570aa6ae9c4c398b9ea3f1e23e7776f707643c5b3e  /tmp/agy.tgz" | sha256sum -c -
+          tar -xzf /tmp/agy.tgz -C /tmp
+          install -m 755 /tmp/antigravity "$HOME/.local/bin/agy"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run read-only reviewer
+        id: review
+        env:
+          # The reviewer the tag named, checked by the pick step above, so the CLI installed here is the one that runs.
+          REVIEW_PROVIDER: ${{ steps.pick.outputs.provider }}
+          REVIEW_MODEL: ${{ steps.pick.outputs.model }}
+          REVIEW_EFFORT: ${{ steps.pick.outputs.effort }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.pick.outputs.provider == 'claude' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          CODEX_AUTH_JSON: ${{ steps.pick.outputs.provider == 'codex' && secrets.CODEX_AUTH_JSON || '' }}
+          OPENCODE_API_KEY: ${{ steps.pick.outputs.provider == 'opencode' && startsWith(steps.pick.outputs.model, 'opencode-go/') && secrets.OPENCODE_API_KEY || '' }}
+          ZHIPU_API_KEY: ${{ steps.pick.outputs.provider == 'opencode' && startsWith(steps.pick.outputs.model, 'zai-coding-plan/') && secrets.ZHIPU_API_KEY || '' }}
+          NVIDIA_API_KEY: ${{ steps.pick.outputs.provider == 'opencode' && startsWith(steps.pick.outputs.model, 'nvidia/') && secrets.NVIDIA_API_KEY || '' }}
+          SARVAM_API_KEY: ${{ steps.pick.outputs.provider == 'opencode' && startsWith(steps.pick.outputs.model, 'sarvam/') && secrets.SARVAM_API_KEY || '' }}
+          # The Google-plan file agy writes (tools/agy-ci-login.mjs). Not an API key. The job redeems the
+          # refresh token before bubblewrap and mounts only a short-lived access token. The refresh token is
+          # not written to disk and is not passed into the sandbox.
+          AGY_OAUTH_TOKEN: ${{ steps.pick.outputs.provider == 'antigravity' && secrets.AGY_OAUTH_TOKEN || '' }}
+          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+        run: node tools/agent-review.mjs run
+
+      - name: Notify the target if the hosted review stopped
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+        run: node tools/agent-review.mjs stop

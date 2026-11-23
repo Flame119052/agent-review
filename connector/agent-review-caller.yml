@@ -1,0 +1,25 @@
+name: send review request
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: contains(github.event.comment.body, '@review ') || contains(github.event.comment.body, '@tess-review ')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send repository and comment IDs to the review hub
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_REVIEW_DISPATCH_TOKEN }}
+        run: |
+          jq -c '{
+            event_type: "agent-review",
+            client_payload: {
+              repository: .repository.full_name,
+              issue_number: .issue.number,
+              comment_id: .comment.id
+            }
+          }' "$GITHUB_EVENT_PATH" |
+            gh api repos/Flame119052/agent-review/dispatches --input - --silent
