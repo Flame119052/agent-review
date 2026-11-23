@@ -258,3 +258,9 @@ test('one watcher polls multiple repos, keeps separate state, and continues afte
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("GLM-5.4 and GPT-6.2 Sol are allowed strong models", () => {
+  const cfg = JSON.parse(readFileSync(new URL("../.github/agents.json", import.meta.url), "utf8"));
+  assert.ok(cfg.strong.includes("zai-coding-plan/glm-5.4"));
+  assert.ok(cfg.strong.includes("gpt-6.2-sol"));
+});
