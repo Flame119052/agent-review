@@ -111,3 +111,31 @@ Keep one timer on each machine and confirm its variable is updating. The [publis
 gh workflow disable codex-refresh.yml -R Flame119052/tess-music
 gh workflow view codex-refresh.yml -R Flame119052/agent-review
 ```
+
+## 6. Secret source & rotation guide
+
+Keep this table handy when rotating any credential so you know which local tools share a key and what stops working if you revoke it. No secret values or personal paths are stored here.
+
+| Secret in `agent-review` | Where it came from | Shared with local tools? | How to rotate cleanly |
+| --- | --- | --- | --- |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Generated via `claude setup-token` (~1-year headless OAuth token) | **Separate token** from your interactive Claude Code login, same Claude subscription | Run `claude setup-token` and upload with `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R Flame119052/agent-review`. Revoking old token only affects CI reviews. |
+| `CODEX_AUTH_JSON` | Dedicated device-code login via `tools/codex-ci-login.mjs` (separate from `~/.codex`) | **Dedicated CI login** (never shares `~/.codex/auth.json`). Auto-rotated every 4 days by `codex-refresh.yml`. | Do not touch while `codex-refresh.yml` is healthy. If broken: disable `codex-refresh.yml`, re-run `AGENT_REVIEW_REPO=Flame119052/agent-review node tools/codex-ci-login.mjs`, then re-enable `codex-refresh.yml`. |
+| `AGY_OAUTH_TOKEN` | Dedicated Linux file-based OAuth login via `tools/agy-ci-login.mjs --login` (under `~/.config/*-agy-ci/`) | **Dedicated CI login** (separate from macOS keychain), same Google plan. | Re-run `node tools/agy-ci-login.mjs --login` + `--check` on Linux, then upload with `gh secret set AGY_OAUTH_TOKEN -R Flame119052/agent-review < ...`. Revoking in Google Account stops CI Gemini reviews until re-logged-in. |
+| `OPENCODE_API_KEY` | Copied from local OpenCode credential store (`~/.local/share/opencode/opencode.db`, `opencode-go`) | **Shared** with OpenCode Go on your local machines (and any Cloudflare Worker using the same Go key). | Rotating this key in the OpenCode console requires updating both your local OpenCode login and `gh secret set OPENCODE_API_KEY -R Flame119052/agent-review` (plus any Worker using it). |
+| `ZHIPU_API_KEY` | Copied from local OpenCode credential store (`~/.local/share/opencode/opencode.db`, `zai-coding-plan`) | **Shared** with Z.ai Coding Plan in local OpenCode / ZCode. | Rotating in the Z.ai console requires updating both local OpenCode and `gh secret set ZHIPU_API_KEY -R Flame119052/agent-review`. |
+| `NVIDIA_API_KEY` | Copied from local OpenCode credential store (`~/.local/share/opencode/opencode.db`, `nvidia`) | **Shared** with Nvidia NIM in local OpenCode. | Rotating in the Nvidia console requires updating both local OpenCode and `gh secret set NVIDIA_API_KEY -R Flame119052/agent-review`. |
+| `SARVAM_API_KEY` | Copied from local OpenCode config (`~/.config/opencode/opencode.jsonc`, `sarvam`) | **Shared** with Sarvam in local OpenCode. | Rotating in the Sarvam console requires updating both `~/.config/opencode/opencode.jsonc` and `gh secret set SARVAM_API_KEY -R Flame119052/agent-review`. |
+| `REVIEW_TARGET_TOKEN` | Fine-grained GitHub PAT (all repos: Actions/Contents read; Issues/PRs read-write) | **Hub-only** | Regenerate/replace in GitHub Developer Settings, then `gh secret set REVIEW_TARGET_TOKEN -R Flame119052/agent-review`. |
+| `CODEX_SECRET_ROTATOR_TOKEN` | Fine-grained GitHub PAT (`agent-review` only: Actions read, Secrets read-write; stored in `main`-only `codex-refresh` env) | **Hub-only** | Regenerate/replace in GitHub Developer Settings, then `gh secret set CODEX_SECRET_ROTATOR_TOKEN -R Flame119052/agent-review --env codex-refresh`. |
+| `AGENT_REVIEW_DISPATCH_TOKEN` | Fine-grained GitHub PAT (`agent-review` only: Contents read-write; stored in each **calling** repo) | **Shared across calling repos** | Regenerate/replace, then update `AGENT_REVIEW_DISPATCH_TOKEN` in each connected calling repo. |
+
+## 7. Security checklist for `Flame119052/agent-review`
+
+Verify these repository settings on GitHub so the public hub stays locked down:
+
+1. **Protect `main` (Settings → Rules → Rulesets):** block force-pushes, branch deletions, and direct pushes from non-admin tokens (important because `AGENT_REVIEW_DISPATCH_TOKEN` carries Contents write for `repository_dispatch`).
+2. **Approve outside fork workflows (Settings → Actions → General → Fork pull request workflows):** select *Require approval for all outside collaborators*.
+3. **Keep `codex-refresh` environment restricted to `main` only** (so `CODEX_SECRET_ROTATOR_TOKEN` can never be read by PRs or feature branches).
+4. **Never add secrets to `tess-music` or other calling repos** once migrated — only `AGENT_REVIEW_DISPATCH_TOKEN` belongs in a calling repo.
+5. **Private repos never run on GitHub's public runners** — the gate refuses `machine=github` for private repos and routes them only to your local watchers (`mac` → `omarchy` → `vps`).
+
