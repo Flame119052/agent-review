@@ -27,3 +27,16 @@ node --test tools/test-*.mjs
 ```
 
 The review tools were adapted from Tess Music under the [MIT license](LICENSE).
+
+## Quick reference for agent skills and calling repos
+
+Once a repository has `.github/workflows/agent-review.yml` (copied from `connector/agent-review-caller.yml`) and the `AGENT_REVIEW_DISPATCH_TOKEN` secret, any allowlisted account or agent posting under it can request a review by commenting on a pull request or issue:
+
+```text
+@review pr provider=opencode model=zai-coding-plan/glm-5.4 effort=high author=codex
+GLM-5.4 on Z.ai; change written by Codex.
+```
+
+- **Public repositories** run automatically on GitHub's free unlimited `ubuntu-latest` VM inside `bubblewrap`.
+- **Private repositories** never run on public GitHub runners; the hub automatically queues them for the highest-priority online local machine (`mac` → `omarchy` → `vps`) based on live usage snapshots.
+- `@tess-review` is also accepted as an alias for `@review`.
