@@ -92,13 +92,19 @@ export function repositoryTarget(repo, api = targetApi) {
 }
 
 export function readReviewConfig(target, api = targetApi) {
-  const file = fileOnDefault(target, '.github/review.json', api) ?? fileOnDefault(target, '.github/agents.json', api);
+  const reviewFile = fileOnDefault(target, '.github/review.json', api);
+  const file = reviewFile ?? fileOnDefault(target, '.github/agents.json', api);
   if (!file) return mergeReviewConfig();
   if (file.type !== 'file' || file.encoding !== 'base64' || typeof file.content !== 'string') {
     throw new Error('GitHub did not return a review configuration file.');
   }
   const config = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
   if (!config || Array.isArray(config) || typeof config !== 'object') throw new Error('Invalid review configuration.');
+  if (!reviewFile) {
+    // Legacy .github/agents.json predates the hub: keep its caps/reserve/paths, but let the hub own allowed/strong models.
+    const { allowed: _a, strong: _s, models: _m, agents: _ag, ...rest } = config;
+    return mergeReviewConfig(rest);
+  }
   return mergeReviewConfig(config);
 }
 

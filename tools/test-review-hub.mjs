@@ -167,8 +167,9 @@ test('default branch config supports a legacy catalog, restrictions, caps and pa
   assert.equal(rules.caps.timeout_s, 360);
   assert.equal(rules.caps.codex.max_tokens, defaults.caps.codex.max_tokens);
   assert.equal(custom.calls.length, 1);
-  const legacy = readReviewConfig(target, fixture({ legacy: { allowed: { codex: ['gpt-6.1-terra'] } } }).api);
-  assert.deepEqual(legacy.allowed.codex, ['gpt-6.1-terra']);
+  const legacy = readReviewConfig(target, fixture({ legacy: { allowed: { codex: ['gpt-6.1-terra'] }, caps: { timeout_s: 420 } } }).api);
+  assert.ok(legacy.allowed.codex.includes('gpt-6.2-sol'), 'legacy agents.json does not hide newer hub models');
+  assert.equal(legacy.caps.timeout_s, 420);
 });
 
 test('the shell gate and hosted picker keep private target data and errors out of stdout, stderr and outputs', () => {
