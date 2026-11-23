@@ -10,12 +10,12 @@
   "approach": [
     {
       "provider": "opencode",
-      "model": "zai-coding-plan/glm-5.3",
+      "model": "zai-coding-plan/glm-5.4",
       "effort": "high"
     },
     {
       "provider": "codex",
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
       "effort": "high"
     },
     {
@@ -49,12 +49,12 @@
   "pr_sensitive": [
     {
       "provider": "opencode",
-      "model": "zai-coding-plan/glm-5.3",
+      "model": "zai-coding-plan/glm-5.4",
       "effort": "high"
     },
     {
       "provider": "codex",
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
       "effort": "high"
     },
     {
@@ -71,6 +71,7 @@
       "claude-haiku-5-5"
     ],
     "codex": [
+      "gpt-6.2-sol",
       "gpt-6.1-sol",
       "gpt-6.1-terra"
     ],
@@ -81,6 +82,7 @@
       "opencode-go/deepseek-v4-pro",
       "opencode-go/kimi-k3.1-pro",
       "opencode-go/qwen4-max",
+      "zai-coding-plan/glm-5.4",
       "zai-coding-plan/glm-5.3",
       "zai-coding-plan/glm-5.3-flash",
       "zai-coding-plan/glm-5.3-highspeed",
@@ -103,6 +105,8 @@
     ]
   },
   "strong": [
+    "gpt-6.2-sol",
+    "zai-coding-plan/glm-5.4",
     "zai-coding-plan/glm-5.3",
     "gpt-6.1-sol",
     "claude-opus-5-5"
@@ -143,7 +147,9 @@
     "opencode/sarvam/gemma4": "light",
     "opencode/sarvam/deepseekv4.1-flash-1017": "light",
     "opencode/sarvam/sarvam-105b": "medium",
-    "antigravity/gemini-4-neon": "heavy"
+    "antigravity/gemini-4-neon": "heavy",
+    "opencode/zai-coding-plan/glm-5.4": "medium",
+    "codex/gpt-6.2-sol": "heavy"
   },
   "caps": {
     "_note": "Hard limits on one review, so a review can never take a large share of an allowance. Read by tools/agent-review.mjs; the table in docs/workflow.md explains each one.",
@@ -176,7 +182,9 @@
       "opencode/sarvam/glm5.3-flash": 0.2,
       "opencode/sarvam/gemma4": 0.2,
       "opencode/sarvam/deepseekv4.1-flash-1017": 0.1,
-      "opencode/sarvam/sarvam-105b": 1
+      "opencode/sarvam/sarvam-105b": 1,
+      "opencode/zai-coding-plan/glm-5.4": 1,
+      "codex/gpt-6.2-sol": 7
     },
     "claude": {
       "max_turns": 12,

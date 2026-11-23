@@ -1659,7 +1659,7 @@ test('new OpenCode models have a cost and a share, and none of them is strong', 
     'opencode/nemotron-3.5-super-vl-free',
     'opencode/big-pickle',
   ]);
-  assert.deepEqual(config.strong, ['zai-coding-plan/glm-5.3', 'gpt-6.1-sol', 'claude-opus-5-5']);
+  assert.deepEqual(config.strong, ['gpt-6.2-sol', 'zai-coding-plan/glm-5.4', 'zai-coding-plan/glm-5.3', 'gpt-6.1-sol', 'claude-opus-5-5']);
   for (const id of addedOpencodeModels) {
     assert.ok(config.allowed.opencode.includes(id), `${id} is allowed`);
     assert.ok(!config.strong.includes(id), `${id} is not strong`);
