@@ -109,7 +109,8 @@
     "zai-coding-plan/glm-5.4",
     "zai-coding-plan/glm-5.3",
     "gpt-6.1-sol",
-    "claude-opus-5-5"
+    "claude-opus-5-5",
+    "gemini-4-neon"
   ],
   "efforts": [
     "low",
