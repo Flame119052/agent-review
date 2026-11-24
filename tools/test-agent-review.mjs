@@ -193,7 +193,7 @@ test('the review step holds one provider key and never a second provider\'s', ()
       assert.match(line, new RegExp(`provider == '${provider}'`), `${name} is only passed when ${provider} is picked`);
     }
   }
-  assert.match(run, /GH_TOKEN: \$\{\{ secrets\.REVIEW_TARGET_TOKEN \}\}/, 'the job can post the comment');
+  assert.match(run, /GH_TOKEN: \$\{\{ (?:steps\.app_token\.outputs\.token \|\| )?secrets\.REVIEW_TARGET_TOKEN \}\}/, 'the job can post the comment');
   assert.match(run, /node tools\/agent-review\.mjs/, 'the script itself strips GH_TOKEN before the reviewer starts');
 });
 
@@ -2586,7 +2586,7 @@ test('the workflow gate runs the tested script with the target token', () => {
   const gate = jobBlock('gate');
   assert.match(gate, /run: bash tools\/agent-gate\.sh/);
   assert.doesNotMatch(gate, /gh api|COMMENT_BODY|COMMENTER|client_payload|inputs\./);
-  assert.match(gate, /GH_TOKEN: \$\{\{ secrets\.REVIEW_TARGET_TOKEN \}\}/);
+  assert.match(gate, /GH_TOKEN: \$\{\{ (?:steps\.app_token\.outputs\.token \|\| )?secrets\.REVIEW_TARGET_TOKEN \}\}/);
   for (const name of Object.values(providerKeys).flat()) assert.ok(!gate.includes(name));
 });
 
@@ -2938,7 +2938,7 @@ test('the review workflow has a failure step that comments, and it holds no prov
   const review = jobBlock('review');
   const step = stepBlock(review, 'Notify the target if the hosted review stopped');
   assert.match(step, /if: failure\(\)/, 'it runs only when an earlier step failed');
-  assert.match(step, /GH_TOKEN: \$\{\{ secrets\.REVIEW_TARGET_TOKEN \}\}/, 'the job token, nothing more');
+  assert.match(step, /GH_TOKEN: \$\{\{ (?:steps\.app_token\.outputs\.token \|\| )?secrets\.REVIEW_TARGET_TOKEN \}\}/, 'the job token, nothing more');
   assert.match(step, /agent-review\.mjs stop/, 'the tested script posts the comment');
   for (const names of Object.values(providerKeys)) {
     for (const name of names) assert.ok(!step.includes(name), `${name} is never on the failure step`);

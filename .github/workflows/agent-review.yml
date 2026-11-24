@@ -34,10 +34,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Mint GitHub App token (posts as bot when configured)
+        id: app_token
+        if: vars.REVIEW_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REVIEW_APP_ID }}
+          private-key: ${{ secrets.REVIEW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       - name: Verify the request and notify the target when needed
         id: gate
         env:
-          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.REVIEW_TARGET_TOKEN }}
           AGENT_ALLOWLIST: ${{ vars.AGENT_ALLOWLIST }}
           USAGE_SNAPSHOT_MAC: ${{ vars.USAGE_SNAPSHOT_MAC }}
           USAGE_SNAPSHOT_VPS: ${{ vars.USAGE_SNAPSHOT_VPS }}
@@ -64,10 +72,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Mint GitHub App token (posts as bot when configured)
+        id: app_token
+        if: vars.REVIEW_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REVIEW_APP_ID }}
+          private-key: ${{ secrets.REVIEW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       - name: Verify public visibility and pick the reviewer
         id: pick
         env:
-          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.REVIEW_TARGET_TOKEN }}
         run: node tools/agent-review.mjs pick
 
       - name: Let bubblewrap start its sandbox
@@ -138,11 +154,11 @@ jobs:
           # refresh token before bubblewrap and mounts only a short-lived access token. The refresh token is
           # not written to disk and is not passed into the sandbox.
           AGY_OAUTH_TOKEN: ${{ steps.pick.outputs.provider == 'antigravity' && secrets.AGY_OAUTH_TOKEN || '' }}
-          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.REVIEW_TARGET_TOKEN }}
         run: node tools/agent-review.mjs run
 
       - name: Notify the target if the hosted review stopped
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.REVIEW_TARGET_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.REVIEW_TARGET_TOKEN }}
         run: node tools/agent-review.mjs stop
